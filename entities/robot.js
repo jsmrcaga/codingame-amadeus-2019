@@ -245,14 +245,14 @@ class Robot extends R {
 			return this.use(this.item, matrix, radars, traps);
 		}
 
-		// This robot is supposed to get traps
-		if(this.canGetTrap(trapCooldown)) {
-			return this.request('TRAP');
-		}
-
 		// or maybe radars ?
 		if(this.canGetRadar(radarCooldown)) {
 			return this.request('RADAR');
+		}
+		
+		// This robot is supposed to get traps
+		if(this.canGetTrap(trapCooldown)) {
+			return this.request('TRAP');
 		}
 
 		return this.action(...arguments);
