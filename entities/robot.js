@@ -201,6 +201,10 @@ class Robot extends R {
 			ores = ores.filter(o => o.qtty >= min_qtty);
 		}
 
+		if(!ores.length) {
+			return null;
+		}
+
 		let i = 0;
 		let found = this.black_list.find(e => e.x === ores[i].x && e.y === ores[i].y);
 		while(found) {
