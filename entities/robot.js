@@ -140,7 +140,7 @@ class Robot extends R {
 			return this.recover_ore(closestOre);
 		}
 
-		let { x, y } = this.random_coords(matrix, { x:-10, y:0 });
+		let { x, y } = this.random_coords(matrix, { x:-2, y:0 });
 
 		return this.move({x, y}, () => {
 			this.dig({x, y}, `Placing radar`);
@@ -148,18 +148,11 @@ class Robot extends R {
 	}
 
 	random_coords(matrix, {x: ox=0, y: oy=0}={}) {
-		let w2 = Math.floor(matrix[0].length / 2);
-		let h2 = Math.floor(matrix.length / 2);
-		
-		let x = Math.floor(Math.random() * w2 + w2/2) + ox;
-		while(x < 5) {
-			x = Math.floor(Math.random() * w2 + w2/2) + ox;
-		}
+		let h = matrix.length;
+		let w = matrix[0].length;
 
-		let y = Math.floor(Math.random() * h2 + h2/2) + oy;
-		while(y < 3) {
-			y = Math.floor(Math.random() * h2 + h2/2) + oy;
-		}
+		let x = Math.floor(Math.random() * w);
+		let y = Math.floor(Math.random() * h);
 
 		return {x, y};
 	}
@@ -269,7 +262,7 @@ class Robot extends R {
 		}
 
 		// If not, go to a random middle place and dig
-		let { x, y } = this.random_coords(matrix, { x:-10, y:0 });
+		let { x, y } = this.random_coords(matrix, { x:-2, y:0 });
 
 		printErr(`Robot ${this.id} is moving randomly, (${x}, ${y})`);
 		return this.move({ x, y }, () => {
