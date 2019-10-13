@@ -68,8 +68,9 @@ class Game {
 	play() {
 		printErr(`Playing ${this.round} for ${this.entities.robots.length} robots (${this.entities.robots.map(r => r.id).join(', ')})`);
 		printErr(`Aware of ${this.matrix.ores.length} ores totaling: ${this.matrix.ores.reduce((sum, ore) => sum + ore.qtty, 0)} ore`);
+		printErr(`Aware of ${this.entities.traps.length} traps!`);
 		for(let robot of this.entities.robots) {
-			robot.play(this.entities, this.matrix, this.radarCooldown, this.trapCooldown);
+			robot.play(this.entities, this.matrix, this.radarCooldown, this.trapCooldown, this.round);
 		}
 	}
 }
