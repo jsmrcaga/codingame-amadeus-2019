@@ -125,68 +125,126 @@ class Robot extends R {
 	}
 
 	headquarters(message='') {
+		// let callback = this.item ? () => {
+		// 	this.wait('Returning something');
+		// } : null;
+
 		return this.move({
 			x: 0,
 			y: this.position.y
-		}, () => {
-			this.wait('Returning something');
-		}, message);
+		}, null, message);
 	}
 
-	placeRadar(matrix, radars, traps) {
-		let closestOre = this.get_closest_ore(matrix);
-		if(closestOre) {
-			// will place radar at the same time
-			return this.recover_ore(closestOre);
+	ban_cells(coords, around=2) {
+		let banned = [];
+
+		for(let { x, y } of coords) {
+			let min = around * -1;
+			let max = around;
+			for(let i = min; i <= max; i++) {
+				for(let j = min; j <= max; j++) {
+					banned.push({
+						x:i + x,
+						y:j + y
+					});
+				}
+			}
 		}
 
-		let { x, y } = this.random_coords(matrix, { x:-2, y:0 });
+		return banned;
+	}
 
+	place_radar(matrix, radars, traps, round) {
+		let banned_cells = this.ban_cells(radars);
+
+		let counter = 10;
+		let { x, y } = this.random_coords(matrix, traps, round);
+		let banned = banned_cells.find(e => e.x === x && e.y === y);
+		while(banned && counter > 0) {
+			let { x: ax, y: ay } = this.random_coords(matrix, traps, round);
+			x = ax;
+			y = ay;
+
+			banned = banned_cells.find(e => e.x === x && e.y === y);
+			counter--;
+		}
+
+		// If 10 cells failed, look for closest ore
+		if(!counter) {
+			let closestOre = this.get_closest_ore(matrix, traps);
+			if(closestOre) {
+				// will place radar at the same time
+				return this.recover_ore(closestOre);
+			}
+		}
+
+		// go to far away cell
 		return this.move({x, y}, () => {
 			this.dig({x, y}, `Placing radar`);
 		}, `Going to place radar`);
 	}
 
-	random_coords(matrix, {x: ox=0, y: oy=0}={}) {
+	place_trap(matrix, radars, traps, round) {
+		let closestOre = this.get_closest_ore(matrix, traps, 2);
+		if(closestOre){
+			// will dig and place trap at the same time
+			this.emit('trap', {
+				x: closestOre.x,
+				y: closestOre.y
+			});
+			return this.recover_ore(closestOre);
+		}
+
+		// Allow others to blacklist
+		let { x, y } = this.random_coords(matrix, traps, round);
+		this.emit('trap', {x, y});
+		return this.move({x, y}, () => {
+			this.dig({x, y}, `Placing trap`);
+		}, `Going to place trap`);
+	}
+
+	random_coords(matrix, traps, round=-1) {
 		let h = matrix.length;
 		let w = matrix[0].length;
 
-		let x = Math.floor(Math.random() * w);
-		let y = Math.floor(Math.random() * h);
+		let x = round > -1 ? round + 8 : Math.floor(Math.random() * w);
+		let { y } = this.position;
+
+		if(x > 28) {
+			x = Math.floor(Math.random() * (28 - 15) + 15);
+
+			let oy = 2;
+			y = y + Math.floor(Math.random() * oy);
+			while(y > 14 || y < 0) {
+				oy++;
+				let offset = Math.floor(Math.random() * oy) * (Math.random() > 0.5 ? -1 : 1);
+				y = y + offset;
+			}
+		}
+
+		let trap = traps.find(t => t.x === x && t.y === y);
+		if(trap) {
+			return this.random_coords(matrix, traps, round);
+		}
 
 		return {x, y};
 	}
 
-	use(type, matrix, radars, traps) {
+	use(type, matrix, radars, traps, round) {
 		switch(type) {
 			case 'radar':
 				// find unknown 3x3 place
-				return this.placeRadar(matrix, radars, traps);
+				return this.place_radar(matrix, radars, traps, round);
 			case 'trap':
 				// Closest ore block with at least 2 ores
-				let closestOre = this.get_closest_ore(matrix, 2);
-				if(closestOre){
-					// will dig and place trap at the same time
-					this.emit('trap', {
-						x: closestOre.x,
-						y: closestOre.y
-					});
-					return this.recover_ore(closestOre);
-				}
-
-				// Allow others to blacklist
-				let { x, y } = this.random_coords(matrix);
-				this.emit('trap', {x, y});
-				return this.move({x, y}, () => {
-					this.dig({x, y}, `Placing trap`);
-				}, `Going to place trap`);
+				return this.place_trap(matrix, radars, traps, round);
 				// go to any empty cell
 			case 'ore':
 				return this.headquarters('Returning ore');
 		}
 	}
 
-	get_closest_ore(matrix, min_qtty=null) {
+	get_closest_ore(matrix, traps, min_qtty=null) {
 		// Do we know where ORE is?
 		if(!matrix.ores.length) {
 			return null;
@@ -207,12 +265,14 @@ class Robot extends R {
 
 		let i = 0;
 		let found = this.black_list.find(e => e.x === ores[i].x && e.y === ores[i].y);
-		while(found) {
+		let trap = traps.find(t => t.x === ores[i].x && t.y === ores[i].y);
+		while(found || trap) {
 			i++;
 			if(!ores[i]) {
 				return null;
 			}
 			found = this.black_list.find(e => e.x === ores[i].x && e.y === ores[i].y);
+			trap = traps.find(t => t.x === ores[i].x && t.y === ores[i].y);
 		}
 		return ores[i];
 	}
@@ -225,7 +285,7 @@ class Robot extends R {
 		}, `Going to recover closest ore`);
 	}
 
-	play({ robots, enemies, radars, traps }, matrix, radarCooldown, trapCooldown) {
+	play({ robots, enemies, radars, traps }, matrix, radarCooldown, trapCooldown, round) {
 		if(this.dead) {
 			printErr(`Robot ${this.id} is dead`);
 			return this.wait('dead');
@@ -242,7 +302,7 @@ class Robot extends R {
 		// If robot has an item
 		if(this.item) {
 			printErr(`Robot ${this.id} will use item ${this.item}`);
-			return this.use(this.item, matrix, radars, traps);
+			return this.use(this.item, matrix, radars, traps, round);
 		}
 
 		// or maybe radars ?
@@ -258,20 +318,20 @@ class Robot extends R {
 		return this.action(...arguments);
 	}
 
-	action({ robots, enemies, radars, traps }, matrix, radarCooldown, trapCooldown) {
-		let closestOre = this.get_closest_ore(matrix);
+	action({ robots, enemies, radars, traps }, matrix, radarCooldown, trapCooldown, round) {
+		let closestOre = this.get_closest_ore(matrix, traps);
 
 		if(closestOre) {
 			return this.recover_ore(closestOre);
 		}
 
 		// If not, go to a random middle place and dig
-		let { x, y } = this.random_coords(matrix, { x:-2, y:0 });
+		let { x, y } = this.random_coords(matrix, traps, round);
 
 		printErr(`Robot ${this.id} is moving randomly, (${x}, ${y})`);
 		return this.move({ x, y }, () => {
 			this.dig({x, y});
-		}, 'digging random palce');
+		}, 'digging random place');
 	}
 
 	canGetRadar(radarCooldown) {
